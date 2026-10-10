@@ -46,17 +46,47 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("ecobingo-theme");
-    if (savedTheme === "dark" || savedTheme === "light") setTheme(savedTheme);
-    setLoaded(true);
+    try {
+      const savedTheme = window.localStorage.getItem("ecobingo-theme");
+      const savedProgress = window.localStorage.getItem("ecobingo-progress-v1");
+      if (savedTheme === "dark" || savedTheme === "light") setTheme(savedTheme);
+      if (savedProgress) {
+        const parsed = JSON.parse(savedProgress) as {
+          completed?: unknown;
+          bonusClaimed?: unknown;
+          points?: unknown;
+        };
+        if (Array.isArray(parsed.completed)) {
+          setCompleted(parsed.completed.filter((id): id is number =>
+            typeof id === "number" && missions.some((mission) => mission.id === id)
+          ));
+        }
+        if (typeof parsed.bonusClaimed === "boolean") setBonusClaimed(parsed.bonusClaimed);
+        if (typeof parsed.points === "number" && Number.isFinite(parsed.points)) {
+          setPoints(Math.max(0, Math.floor(parsed.points)));
+        }
+      }
+    } catch {
+      // If saved browser data is invalid or unavailable, start with the demo defaults.
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
-    if (loaded) {
-      document.documentElement.dataset.theme = theme;
+    if (!loaded) return;
+    document.documentElement.dataset.theme = theme;
+    try {
       window.localStorage.setItem("ecobingo-theme", theme);
+      window.localStorage.setItem("ecobingo-progress-v1", JSON.stringify({
+        completed,
+        bonusClaimed,
+        points,
+      }));
+    } catch {
+      // The app remains usable if the browser blocks local storage.
     }
-  }, [theme, loaded]);
+  }, [theme, completed, bonusClaimed, points, loaded]);
 
   function notify(message: string) {
     setToast(message);
