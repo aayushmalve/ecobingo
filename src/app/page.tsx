@@ -50,6 +50,9 @@ export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [completed, setCompleted] = useState<number[]>([]);
   const [bonusClaimed, setBonusClaimed] = useState(false);
+  const [activityDates, setActivityDates] = useState<string[]>([]);
+  const [todayKey, setTodayKey] = useState("");
+
   const [toast, setToast] = useState("");
   const [points, setPoints] = useState(240);
   const [loaded, setLoaded] = useState(false);
@@ -65,6 +68,7 @@ export default function Home() {
       const savedTheme = window.localStorage.getItem("ecobingo-theme");
       const savedProgress = window.localStorage.getItem("ecobingo-progress-v1");
       const today = getLocalDateKey();
+      setTodayKey(today);
 
       if (savedTheme === "dark" || savedTheme === "light") setTheme(savedTheme);
 
@@ -74,11 +78,22 @@ export default function Home() {
           completed?: unknown;
           bonusClaimed?: unknown;
           points?: unknown;
+          activityDates?: unknown;
         };
 
         // Points are cumulative; missions and the bonus belong to one local day.
         if (typeof parsed.points === "number" && Number.isFinite(parsed.points)) {
           setPoints(Math.max(0, Math.floor(parsed.points)));
+        }
+
+        if (Array.isArray(parsed.activityDates)) {
+          setActivityDates([...new Set(
+            parsed.activityDates.filter(
+              (date): date is string =>
+                typeof date === "string" &&
+                /^\d{4}-\d{2}-\d{2}$/.test(date)
+            )
+          )].sort().slice(-730));
         }
 
         if (parsed.date === today) {
@@ -109,11 +124,69 @@ export default function Home() {
         completed,
         bonusClaimed,
         points,
+        activityDates,
       }));
     } catch {
       // The app remains usable if the browser blocks local storage.
     }
-  }, [theme, completed, bonusClaimed, points, loaded]);
+  }, [theme, completed, bonusClaimed, points, activityDates, loaded]);
+
+  // Re-check the local date periodically and when the tab becomes active.
+  useEffect(() => {
+    if (!loaded) return;
+
+    const refreshDay = () => {
+      const currentDate = getLocalDateKey();
+      setTodayKey((previous) => {
+        if (previous && previous !== currentDate) {
+          setCompleted([]);
+          setBonusClaimed(false);
+        }
+        return currentDate;
+      });
+    };
+
+    const interval = window.setInterval(refreshDay, 15_000);
+    window.addEventListener("focus", refreshDay);
+    document.addEventListener("visibilitychange", refreshDay);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshDay);
+      document.removeEventListener("visibilitychange", refreshDay);
+    };
+  }, [loaded]);
+
+  // Count consecutive calendar days, allowing today to be not-yet-completed.
+  const currentStreak = (() => {
+    const activeDays = new Set(activityDates);
+    if (todayKey && !activeDays.has(todayKey)) {
+      const yesterday = new Date(`${todayKey}T12:00:00`);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = [
+        yesterday.getFullYear(),
+        String(yesterday.getMonth() + 1).padStart(2, "0"),
+        String(yesterday.getDate()).padStart(2, "0"),
+      ].join("-");
+      if (!activeDays.has(yesterdayKey)) return 0;
+    }
+
+    let cursor = new Date(`${todayKey}T12:00:00`);
+    if (todayKey && !activeDays.has(todayKey)) cursor.setDate(cursor.getDate() - 1);
+
+    let count = 0;
+    while (count < 730) {
+      const key = [
+        cursor.getFullYear(),
+        String(cursor.getMonth() + 1).padStart(2, "0"),
+        String(cursor.getDate()).padStart(2, "0"),
+      ].join("-");
+      if (!activeDays.has(key)) break;
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  })();
 
   function notify(message: string) {
     setToast(message);
@@ -129,6 +202,7 @@ export default function Home() {
       notify("Mission unchecked");
     } else {
       setCompleted((prev) => [...prev, id]);
+      setActivityDates((prev) => [...new Set([...prev, getLocalDateKey()])].sort().slice(-730));
       setPoints((p) => p + mission.points);
       notify(`+${mission.points} points earned`);
     }
@@ -238,7 +312,7 @@ export default function Home() {
         {tab === "Profile" && <section className="page-content" key="profile">
           <span className="eyebrow muted">YOUR LITTLE CORNER</span><h1 className="page-title">Hey, <span>Explorer.</span></h1><p className="page-subtitle">You're doing better than you think. Keep stepping outside.</p>
           <div className="profile-card"><div className="profile-avatar">A</div><div><strong>Outdoor Explorer</strong><span>Level 3 · Nature curious</span><small>Member since today</small></div><span className="profile-leaf"><Icon name="leaf" /></span></div>
-          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>—</strong><span>STREAK NOT TRACKED</span></div><div className="stat-card"><Icon name="leaf" /><strong>0</strong><span>BADGES TRACKED</span></div></div>
+          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>{currentStreak}</strong><span>DAY STREAK</span></div><div className="stat-card"><Icon name="leaf" /><strong>0</strong><span>BADGES TRACKED</span></div></div>
           <div className="settings-list"><div><span className="setting-icon"><Icon name="clock" /></span><span><strong>Screen-time intention</strong><small>Spend less time scrolling</small></span><span className="setting-tag">ON</span></div><div><span className="setting-icon"><Icon name="leaf" /></span><span><strong>Privacy by design</strong><small>No GPS, camera or background tracking</small></span><Icon name="check" /></div><button className="settings-theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}><span className="setting-icon"><Icon name={theme === "light" ? "moon" : "sun"} /></span><span><strong>{theme === "light" ? "Dark mode" : "Light mode"}</strong><small>Change the look of EcoBingo</small></span><span className={`switch ${theme === "dark" ? "switch-on" : ""}`}><span /></span></button></div>
           <p className="micro-note">EcoBingo is a little nudge to enjoy the world beyond your screen.</p>
         </section>}
