@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type Tab = "Home" | "Bingo" | "Rewards" | "Profile";
 type Mission = { id: number; title: string; icon: string; points: number; tone: string };
+type GuideMessage = { role: "user" | "assistant"; text: string };
 
 const missions: Mission[] = [
   { id: 1, title: "Find a tree", icon: "♧", points: 20, tone: "mint" },
@@ -44,6 +45,12 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [points, setPoints] = useState(240);
   const [loaded, setLoaded] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideQuestion, setGuideQuestion] = useState("");
+  const [guideMessages, setGuideMessages] = useState<GuideMessage[]>([
+    { role: "assistant", text: "Hey, Explorer! Ask me about nature, outdoor missions, or simple ways to help the planet." },
+  ]);
+  const [guideLoading, setGuideLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -115,6 +122,41 @@ export default function Home() {
     notify("Bingo bonus claimed · +100 points");
   }
 
+  async function sendGuideMessage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const question = guideQuestion.trim();
+    if (!question || guideLoading) return;
+    if (question.length > 1200) {
+      setGuideMessages((prev) => [...prev, { role: "assistant", text: "Please keep your question under 1,200 characters." }]);
+      return;
+    }
+
+    setGuideQuestion("");
+    setGuideMessages((prev) => [...prev, { role: "user", text: question }]);
+    setGuideLoading(true);
+
+    try {
+      const response = await fetch("/api/guide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      const data = await response.json() as { answer?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || "The nature guide is unavailable. Please try again.");
+      setGuideMessages((prev) => [...prev, {
+        role: "assistant",
+        text: data.answer || "I couldn't find an answer. Please try again.",
+      }]);
+    } catch (error) {
+      setGuideMessages((prev) => [...prev, {
+        role: "assistant",
+        text: error instanceof Error ? error.message : "Connection failed. Please try again.",
+      }]);
+    } finally {
+      setGuideLoading(false);
+    }
+  }
+
   const nav: { name: Tab; icon: string }[] = [
     { name: "Home", icon: "home" }, { name: "Bingo", icon: "grid" },
     { name: "Rewards", icon: "gift" }, { name: "Profile", icon: "user" },
@@ -180,6 +222,50 @@ export default function Home() {
           <div className="settings-list"><div><span className="setting-icon"><Icon name="clock" /></span><span><strong>Screen-time intention</strong><small>Spend less time scrolling</small></span><span className="setting-tag">ON</span></div><div><span className="setting-icon"><Icon name="leaf" /></span><span><strong>Privacy by design</strong><small>No GPS, camera or background tracking</small></span><Icon name="check" /></div><button className="settings-theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}><span className="setting-icon"><Icon name={theme === "light" ? "moon" : "sun"} /></span><span><strong>{theme === "light" ? "Dark mode" : "Light mode"}</strong><small>Change the look of EcoBingo</small></span><span className={`switch ${theme === "dark" ? "switch-on" : ""}`}><span /></span></button></div>
           <p className="micro-note">EcoBingo is a little nudge to enjoy the world beyond your screen.</p>
         </section>}
+
+        {guideOpen && (
+          <section className="guide-panel" aria-label="EcoBingo Nature Guide">
+            <header className="guide-header">
+              <span className="guide-mark"><Icon name="leaf" /></span>
+              <div className="guide-heading">
+                <strong>Nature Guide</strong>
+                <small>Powered by Gemma · EcoBingo</small>
+              </div>
+              <button className="guide-close" onClick={() => setGuideOpen(false)} aria-label="Close nature guide">×</button>
+            </header>
+            <div className="guide-messages" aria-live="polite">
+              {guideMessages.map((message, index) => (
+                <div key={`${index}-${message.role}`} className={`guide-message guide-${message.role}`}>
+                  {message.text}
+                </div>
+              ))}
+              {guideLoading && <div className="guide-message guide-assistant">Thinking of something wild…</div>}
+            </div>
+            <form className="guide-form" onSubmit={sendGuideMessage}>
+              <input
+                value={guideQuestion}
+                onChange={(event) => setGuideQuestion(event.target.value)}
+                placeholder="Ask about nature or a mission…"
+                aria-label="Ask the nature guide"
+                maxLength={1200}
+                disabled={guideLoading}
+              />
+              <button type="submit" disabled={guideLoading || !guideQuestion.trim()} aria-label="Send question">
+                {guideLoading ? "…" : "Send"}
+              </button>
+            </form>
+            <p className="guide-disclaimer">Stay on safe paths. Observe wildlife from a distance.</p>
+          </section>
+        )}
+        <button
+          className={`guide-launcher ${guideOpen ? "guide-launcher-open" : ""}`}
+          onClick={() => setGuideOpen((open) => !open)}
+          aria-expanded={guideOpen}
+          aria-label={guideOpen ? "Close Nature Guide" : "Open Nature Guide"}
+        >
+          <Icon name={guideOpen ? "check" : "leaf"} />
+          <span>{guideOpen ? "Close guide" : "Nature Guide"}</span>
+        </button>
 
         <nav className="bottom-nav" aria-label="Main navigation">{nav.map(item => <button key={item.name} className={`nav-item ${tab === item.name ? "nav-active" : ""}`} onClick={() => setTab(item.name)}><span className="nav-icon-wrap"><Icon name={item.icon} /></span><span>{item.name}</span></button>)}</nav>
         {toast && <div className="toast" role="status"><Icon name="check" />{toast}</div>}
