@@ -6,6 +6,14 @@ type Tab = "Home" | "Bingo" | "Rewards" | "Profile";
 type Mission = { id: number; title: string; icon: string; points: number; tone: string };
 type GuideMessage = { role: "user" | "assistant"; text: string };
 
+function getLocalDateKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const missions: Mission[] = [
   { id: 1, title: "Find a tree", icon: "♧", points: 20, tone: "mint" },
   { id: 2, title: "Walk for 10 min", icon: "↗", points: 30, tone: "peach" },
@@ -56,21 +64,32 @@ export default function Home() {
     try {
       const savedTheme = window.localStorage.getItem("ecobingo-theme");
       const savedProgress = window.localStorage.getItem("ecobingo-progress-v1");
+      const today = getLocalDateKey();
+
       if (savedTheme === "dark" || savedTheme === "light") setTheme(savedTheme);
+
       if (savedProgress) {
         const parsed = JSON.parse(savedProgress) as {
+          date?: unknown;
           completed?: unknown;
           bonusClaimed?: unknown;
           points?: unknown;
         };
-        if (Array.isArray(parsed.completed)) {
-          setCompleted(parsed.completed.filter((id): id is number =>
-            typeof id === "number" && missions.some((mission) => mission.id === id)
-          ));
-        }
-        if (typeof parsed.bonusClaimed === "boolean") setBonusClaimed(parsed.bonusClaimed);
+
+        // Points are cumulative; missions and the bonus belong to one local day.
         if (typeof parsed.points === "number" && Number.isFinite(parsed.points)) {
           setPoints(Math.max(0, Math.floor(parsed.points)));
+        }
+
+        if (parsed.date === today) {
+          if (Array.isArray(parsed.completed)) {
+            setCompleted([...new Set(parsed.completed.filter((id): id is number =>
+              typeof id === "number" && missions.some((mission) => mission.id === id)
+            ))]);
+          }
+          if (typeof parsed.bonusClaimed === "boolean") {
+            setBonusClaimed(parsed.bonusClaimed);
+          }
         }
       }
     } catch {
@@ -86,6 +105,7 @@ export default function Home() {
     try {
       window.localStorage.setItem("ecobingo-theme", theme);
       window.localStorage.setItem("ecobingo-progress-v1", JSON.stringify({
+        date: getLocalDateKey(),
         completed,
         bonusClaimed,
         points,
@@ -218,7 +238,7 @@ export default function Home() {
         {tab === "Profile" && <section className="page-content" key="profile">
           <span className="eyebrow muted">YOUR LITTLE CORNER</span><h1 className="page-title">Hey, <span>Explorer.</span></h1><p className="page-subtitle">You're doing better than you think. Keep stepping outside.</p>
           <div className="profile-card"><div className="profile-avatar">A</div><div><strong>Outdoor Explorer</strong><span>Level 3 · Nature curious</span><small>Member since today</small></div><span className="profile-leaf"><Icon name="leaf" /></span></div>
-          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>1 day</strong><span>CURRENT STREAK</span></div><div className="stat-card"><Icon name="leaf" /><strong>1</strong><span>BADGES EARNED</span></div></div>
+          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>—</strong><span>STREAK NOT TRACKED</span></div><div className="stat-card"><Icon name="leaf" /><strong>0</strong><span>BADGES TRACKED</span></div></div>
           <div className="settings-list"><div><span className="setting-icon"><Icon name="clock" /></span><span><strong>Screen-time intention</strong><small>Spend less time scrolling</small></span><span className="setting-tag">ON</span></div><div><span className="setting-icon"><Icon name="leaf" /></span><span><strong>Privacy by design</strong><small>No GPS, camera or background tracking</small></span><Icon name="check" /></div><button className="settings-theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}><span className="setting-icon"><Icon name={theme === "light" ? "moon" : "sun"} /></span><span><strong>{theme === "light" ? "Dark mode" : "Light mode"}</strong><small>Change the look of EcoBingo</small></span><span className={`switch ${theme === "dark" ? "switch-on" : ""}`}><span /></span></button></div>
           <p className="micro-note">EcoBingo is a little nudge to enjoy the world beyond your screen.</p>
         </section>}
