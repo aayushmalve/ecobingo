@@ -1,58 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EcoBingo
 
-## Getting Started
+**Touch grass. Build habits. Make every little action count.**
 
-First, run the development server:
+EcoBingo is a gamified outdoor activity web app that encourages people to take screen breaks, explore nature, and complete small environmentally friendly actions. It combines bingo-style missions, progress tracking, weekly challenges, and AI-generated personalized activities.
+
+**Live demo:** https://ecobingo-game.vercel.app/  
+**Repository:** https://github.com/aayushmalve/ecobingo
+
+## Features
+
+- **Bingo missions:** Complete outdoor and environmentally friendly activities.
+- **Points and bonuses:** Earn demo points by completing missions.
+- **Streaks and progress:** Track activity and build consistent habits.
+- **Weekly challenges:** Work toward longer-term goals.
+- **AI Eco Coach:** Generate three personalized missions based on interests and available time.
+- **Nature Guide:** Ask the AI for practical, safety-conscious outdoor ideas.
+- **Local progress storage:** Save supported progress and preferences in your browser using local storage.
+- **Install metadata:** Includes a web app manifest and app icon for supported browsers.
+
+EcoBingo points are for demonstration purposes and have no cash value. Progress is stored locally and is not synchronized across accounts or devices.
+
+## Technology
+
+- Next.js with the App Router
+- React and TypeScript
+- CSS
+- Google Gemini API with a hosted Gemma model
+- Browser local storage
+- Vercel deployment
+
+### How the AI works
+
+EcoBingo uses a Gemma model through Google's hosted Gemini API. The model is not running locally in the browser or on the user's device. AI requests require an internet connection and a server-side API key.
+
+## Getting started
+
+### Requirements
+
+- Node.js and npm
+- A Google AI Studio API key for AI features
+
+### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/aayushmalve/ecobingo.git
+cd ecobingo
+npm install
+```
+
+Create your local environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Set the following variables in `.env.local`:
+
+```dotenv
+GEMINI_API_KEY=your_google_ai_studio_api_key
+GEMMA_MODEL=gemma-4-26b-a4b-it
+```
+
+Keep your actual API key secret. Never commit `.env.local` or expose the key in client-side code.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-
-## EcoBingo features
-
-- Mission completion, demo points, bonus status, and theme preference are saved in this browser using local storage. This is device-local persistence, not account sync.
-- A web app manifest and SVG app icon provide install metadata for supported browsers. Installability and offline support still depend on the browser and hosting environment; this version does not cache the app for offline use.
-- The hosted Gemma 4 nature-guide endpoint is available at `POST /api/guide`. Send JSON such as `{ "question": "Give me a safe 5-minute outdoor observation mission." }`. The endpoint returns `{ "answer": "...", "model": "gemma-4-26b-a4b-it" }`.
-
-### Configure the hosted Gemma 4 API
-
-1. Copy `.env.example` to `.env.local`.
-2. Add a Google AI Studio API key to `GEMINI_API_KEY`. Never expose this key in client-side code or commit `.env.local`.
-3. Optionally set `GEMMA_MODEL` to another Gemma 4 model available to your API key.
-4. For Vercel, add `GEMINI_API_KEY` (and optionally `GEMMA_MODEL`) in the project's Environment Variables settings, then redeploy.
-
-Example local API check:
+Build for production with:
 
 ```bash
-curl -X POST http://localhost:3000/api/guide \
-  -H 'Content-Type: application/json' \
-  -d '{"question":"Suggest one safe outdoor observation mission."}'
+npm run build
 ```
+
+## AI API
+
+The existing AI endpoint is `POST /api/guide`.
+
+For nature-guide chat, send a JSON request:
+
+```json
+{
+  "question": "Suggest one safe outdoor observation mission."
+}
+```
+
+The endpoint returns an answer and the model identifier.
+
+For personalized mission generation, the endpoint also accepts a mission-generation mode and returns three generated missions. See `src/app/api/guide/route.ts` for the request and response implementation.
+
+AI functionality requires a configured server-side `GEMINI_API_KEY`. Do not expose this key in public repository files.
+
+## Deployment
+
+EcoBingo is deployed on Vercel.
+
+To deploy your own instance:
+
+1. Import the repository into Vercel.
+2. Configure `GEMINI_API_KEY` in the project's environment variables.
+3. Optionally configure `GEMMA_MODEL` to a supported model available to your API key.
+4. Deploy and test the application.
+
+## Screenshots
+
+Add screenshots of the actual application here:
+
+- Main bingo board and progress
+- Eco Coach with generated missions
+- Weekly challenges and streaks
+
+## Contributing
+
+Contributions, bug reports, and suggestions are welcome. For substantial changes, open an issue to discuss the proposal before submitting a pull request.
+
+Please never commit API keys, credentials, or other secrets.
+
+## License
+
+See the `LICENSE` file for the license terms.
