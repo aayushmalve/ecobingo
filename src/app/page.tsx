@@ -188,6 +188,37 @@ export default function Home() {
     return count;
   })();
 
+  const achievements = [
+    {
+      id: "first-steps",
+      title: "First Steps",
+      description: "Complete your first mission.",
+      earned: activityDates.length > 0,
+      icon: "leaf",
+    },
+    {
+      id: "nature-explorer",
+      title: "Nature Explorer",
+      description: "Complete 5 missions on today's board.",
+      earned: completed.length >= 5,
+      icon: "grid",
+    },
+    {
+      id: "eco-champion",
+      title: "Eco Champion",
+      description: "Earn 500 total points.",
+      earned: points >= 500,
+      icon: "trophy",
+    },
+    {
+      id: "habit-builder",
+      title: "Habit Builder",
+      description: "Reach a 3-day streak.",
+      earned: currentStreak >= 3,
+      icon: "clock",
+    },
+  ];
+
   function notify(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2100);
@@ -312,7 +343,9 @@ export default function Home() {
         {tab === "Profile" && <section className="page-content" key="profile">
           <span className="eyebrow muted">YOUR LITTLE CORNER</span><h1 className="page-title">Hey, <span>Explorer.</span></h1><p className="page-subtitle">You're doing better than you think. Keep stepping outside.</p>
           <div className="profile-card"><div className="profile-avatar">A</div><div><strong>Outdoor Explorer</strong><span>Level 3 · Nature curious</span><small>Member since today</small></div><span className="profile-leaf"><Icon name="leaf" /></span></div>
-          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>{currentStreak}</strong><span>DAY STREAK</span></div><div className="stat-card"><Icon name="leaf" /><strong>0</strong><span>BADGES TRACKED</span></div></div>
+          <div className="stat-grid"><div className="stat-card"><Icon name="trophy" /><strong>{points}</strong><span>TOTAL POINTS</span></div><div className="stat-card"><Icon name="grid" /><strong>{completed.length}</strong><span>MISSIONS DONE</span></div><div className="stat-card"><Icon name="clock" /><strong>{currentStreak}</strong><span>DAY STREAK</span></div><div className="stat-card"><Icon name="leaf" /><strong>{achievements.filter((achievement) => achievement.earned).length}</strong><span>BADGES EARNED</span></div></div>
+          <div className="section-heading"><div><span className="eyebrow muted">YOUR PROGRESS</span><h2>Achievements</h2></div><span className="small-count">{achievements.filter((achievement) => achievement.earned).length} / {achievements.length}</span></div>
+          <div className="reward-list">{achievements.map((achievement, index) => <div className={`reward-row ${!achievement.earned ? "reward-locked" : ""}`} key={achievement.id}><div className={`reward-icon reward-${index % 3}`}><Icon name={achievement.icon} /></div><div className="reward-copy"><strong>{achievement.title}</strong><small>{achievement.description}</small><span>{achievement.earned ? "Achievement unlocked" : "Keep exploring to unlock"}</span></div><span className={achievement.earned ? "unlocked" : "locked-label"}>{achievement.earned ? "EARNED" : "LOCKED"}</span></div>)}</div>
           <div className="settings-list"><div><span className="setting-icon"><Icon name="clock" /></span><span><strong>Screen-time intention</strong><small>Spend less time scrolling</small></span><span className="setting-tag">ON</span></div><div><span className="setting-icon"><Icon name="leaf" /></span><span><strong>Privacy by design</strong><small>No GPS, camera or background tracking</small></span><Icon name="check" /></div><button className="settings-theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}><span className="setting-icon"><Icon name={theme === "light" ? "moon" : "sun"} /></span><span><strong>{theme === "light" ? "Dark mode" : "Light mode"}</strong><small>Change the look of EcoBingo</small></span><span className={`switch ${theme === "dark" ? "switch-on" : ""}`}><span /></span></button></div>
           <p className="micro-note">EcoBingo is a little nudge to enjoy the world beyond your screen.</p>
         </section>}
