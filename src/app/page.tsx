@@ -5,6 +5,25 @@ import { useEffect, useState } from "react";
 type Tab = "Home" | "Bingo" | "Rewards" | "Profile";
 type Mission = { id: number; title: string; icon: string; points: number; tone: string };
 type GuideMessage = { role: "user" | "assistant"; text: string };
+type WeeklyChallenge = {
+  id: string;
+  title: string;
+  description: string;
+  goal: number;
+  reward: number;
+  icon: string;
+};
+
+function getWeekKey(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  const day = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - day);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const dayOfMonth = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayOfMonth}`;
+}
+
 
 function getLocalDateKey() {
   const now = new Date();
@@ -51,6 +70,12 @@ export default function Home() {
   const [completed, setCompleted] = useState<number[]>([]);
   const [bonusClaimed, setBonusClaimed] = useState(false);
   const [activityDates, setActivityDates] = useState<string[]>([]);
+  const [weeklyData, setWeeklyData] = useState<{
+    week: string;
+    missionCount: number;
+    claimed: string[];
+  }>({ week: "", missionCount: 0, claimed: [] });
+
   const [todayKey, setTodayKey] = useState("");
 
   const [toast, setToast] = useState("");
@@ -79,6 +104,7 @@ export default function Home() {
           bonusClaimed?: unknown;
           points?: unknown;
           activityDates?: unknown;
+          weeklyData?: unknown;
         };
 
         // Points are cumulative; missions and the bonus belong to one local day.
@@ -94,6 +120,30 @@ export default function Home() {
                 /^\d{4}-\d{2}-\d{2}$/.test(date)
             )
           )].sort().slice(-730));
+        }
+
+        const currentWeek = getWeekKey(today);
+        if (parsed.weeklyData && typeof parsed.weeklyData === "object") {
+          const savedWeek = parsed.weeklyData as {
+            week?: unknown; missionCount?: unknown; claimed?: unknown;
+          };
+          if (savedWeek.week === currentWeek) {
+            setWeeklyData({
+              week: currentWeek,
+              missionCount: typeof savedWeek.missionCount === "number"
+                ? Math.max(0, Math.floor(savedWeek.missionCount)) : 0,
+              claimed: Array.isArray(savedWeek.claimed)
+                ? [...new Set(savedWeek.claimed.filter((id): id is string =>
+                    typeof id === "string" &&
+                    ["nature-explorer", "outdoor-habit", "eco-champion"].includes(id)
+                  ))]
+                : [],
+            });
+          } else {
+            setWeeklyData({ week: currentWeek, missionCount: 0, claimed: [] });
+          }
+        } else {
+          setWeeklyData({ week: currentWeek, missionCount: 0, claimed: [] });
         }
 
         if (parsed.date === today) {
@@ -125,11 +175,15 @@ export default function Home() {
         bonusClaimed,
         points,
         activityDates,
+        weeklyData: {
+          ...weeklyData,
+          week: getWeekKey(getLocalDateKey()),
+        },
       }));
     } catch {
       // The app remains usable if the browser blocks local storage.
     }
-  }, [theme, completed, bonusClaimed, points, activityDates, loaded]);
+  }, [theme, completed, bonusClaimed, points, activityDates, weeklyData, loaded]);
 
   // Re-check the local date periodically and when the tab becomes active.
   useEffect(() => {
@@ -137,6 +191,10 @@ export default function Home() {
 
     const refreshDay = () => {
       const currentDate = getLocalDateKey();
+      const currentWeek = getWeekKey(currentDate);
+      setWeeklyData((previous) => previous.week === currentWeek
+        ? previous
+        : { week: currentWeek, missionCount: 0, claimed: [] });
       setTodayKey((previous) => {
         if (previous && previous !== currentDate) {
           setCompleted([]);
@@ -188,6 +246,58 @@ export default function Home() {
     return count;
   })();
 
+  const weeklyChallenges: WeeklyChallenge[] = [
+    {
+      id: "nature-explorer",
+      title: "Nature Explorer",
+      description: "Complete 10 missions this week",
+      goal: 10,
+      reward: 100,
+      icon: "leaf",
+    },
+    {
+      id: "outdoor-habit",
+      title: "Outdoor Habit",
+      description: "Be active on 3 different days",
+      goal: 3,
+      reward: 150,
+      icon: "sun",
+    },
+    {
+      id: "eco-champion",
+      title: "Eco Champion",
+      description: "Earn 300 points from missions",
+      goal: 300,
+      reward: 200,
+      icon: "trophy",
+    },
+  ];
+
+  const weeklyProgress = (challenge: WeeklyChallenge) => {
+    if (weeklyData.week !== getWeekKey(todayKey || getLocalDateKey())) return 0;
+    if (challenge.id === "nature-explorer") return weeklyData.missionCount;
+    if (challenge.id === "outdoor-habit") {
+      return activityDates.filter((date) => getWeekKey(date) === weeklyData.week).length;
+    }
+    return Math.min(300, weeklyData.missionCount * 25);
+  };
+
+  function claimWeeklyChallenge(challenge: WeeklyChallenge) {
+    const currentWeek = getWeekKey(getLocalDateKey());
+    const currentData = weeklyData.week === currentWeek
+      ? weeklyData
+      : { week: currentWeek, missionCount: 0, claimed: [] as string[] };
+    if (currentData.claimed.includes(challenge.id)) {
+      return notify("You've already claimed this weekly reward");
+    }
+    if (weeklyProgress(challenge) < challenge.goal) {
+      return notify("Finish the weekly challenge first");
+    }
+    setWeeklyData({ ...currentData, claimed: [...currentData.claimed, challenge.id] });
+    setPoints((value) => value + challenge.reward);
+    notify(`Weekly reward claimed · +${challenge.reward} points`);
+  }
+
   const achievements = [
     {
       id: "first-steps",
@@ -234,6 +344,13 @@ export default function Home() {
     } else {
       setCompleted((prev) => [...prev, id]);
       setActivityDates((prev) => [...new Set([...prev, getLocalDateKey()])].sort().slice(-730));
+      setWeeklyData((previous) => {
+        const week = getWeekKey(getLocalDateKey());
+        const base = previous.week === week
+          ? previous
+          : { week, missionCount: 0, claimed: [] as string[] };
+        return { ...base, missionCount: base.missionCount + 1 };
+      });
       setPoints((p) => p + mission.points);
       notify(`+${mission.points} points earned`);
     }
@@ -335,6 +452,21 @@ export default function Home() {
         {tab === "Rewards" && <section className="page-content" key="rewards">
           <div><span className="eyebrow muted">GOOD THINGS COME TO OUTSIDE</span><h1 className="page-title">Your <span>rewards.</span></h1><p className="page-subtitle">Little wins for showing up in the real world.</p></div>
           <div className="points-hero"><span className="eyebrow">YOUR ECO POINTS</span><strong>{points.toLocaleString("en-IN")}</strong><span className="points-label"><Icon name="spark" /> Every mission gets you closer</span><div className="points-bottom"><span>LEVEL 3 · EXPLORER</span><span>{Math.max(0, 500 - points % 500)} pts to next level</span></div><div className="level-track"><div style={{ width: `${points % 500 / 5}%` }} /></div></div>
+          <div className="section-heading"><div><span className="eyebrow muted">MONDAY RESET</span><h2>Weekly challenges</h2></div><span className="small-count">RESETS MONDAY</span></div>
+          <div className="weekly-challenge-list">{weeklyChallenges.map((challenge, index) => {
+            const progress = weeklyProgress(challenge);
+            const done = progress >= challenge.goal;
+            const claimed = weeklyData.week === getWeekKey(todayKey || getLocalDateKey()) && weeklyData.claimed.includes(challenge.id);
+            return <div className="weekly-challenge" key={challenge.id}>
+              <div className={`reward-icon reward-${index}`}><Icon name={challenge.icon} /></div>
+              <div className="weekly-challenge-main">
+                <div className="weekly-challenge-title"><strong>{challenge.title}</strong><span>+{challenge.reward} pts</span></div>
+                <small>{challenge.description}</small>
+                <div className="weekly-track" role="progressbar" aria-label={challenge.title} aria-valuemin={0} aria-valuemax={challenge.goal} aria-valuenow={Math.min(progress, challenge.goal)}><div style={{ width: `${Math.min(100, progress / challenge.goal * 100)}%` }} /></div>
+                <div className="weekly-challenge-bottom"><span>{Math.min(progress, challenge.goal)} / {challenge.goal}</span><button className="weekly-claim" disabled={!done || claimed} onClick={() => claimWeeklyChallenge(challenge)}>{claimed ? "Claimed" : done ? "Claim reward" : "In progress"}</button></div>
+              </div>
+            </div>;
+          })}</div>
           <div className="section-heading"><div><span className="eyebrow muted">UNLOCK YOUR GOODIES</span><h2>Achievements</h2></div><span className="small-count">01 / 03</span></div>
           <div className="reward-list">{[{title:"Fresh Start", subtitle:"Complete your first bingo", cost:"100 pts", icon:"leaf", ready:true},{title:"Nature Nerd",subtitle:"Finish 3 daily boards",cost:"250 pts",icon:"leaf",ready:false},{title:"Touch Grass Club",subtitle:"Get outside 5 days in a row",cost:"500 pts",icon:"trophy",ready:false}].map((r,i)=><div className={`reward-row ${!r.ready?"reward-locked":""}`} key={r.title}><div className={`reward-icon reward-${i}`}><Icon name={r.icon} /></div><div className="reward-copy"><strong>{r.title}</strong><small>{r.subtitle}</small><span>{r.cost}</span></div><span className={r.ready?"unlocked":"locked-label"}>{r.ready?"READY":"LOCKED"}</span></div>)}</div>
           <div className="coming-soon"><span className="coming-icon"><Icon name="gift" /></span><div><strong>Real-world rewards are on the way</strong><p>Partner coupons and redeemable perks come later. Points are demo points, not cash.</p></div></div>

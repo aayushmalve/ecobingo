@@ -186,3 +186,18 @@ button:active { transform: scale(.985); }
   .guide-launcher { bottom: 110px; }
   .guide-panel { bottom: 162px; }
 }
+
+
+/* Weekly challenge cards */
+.weekly-challenge-list { display: flex; flex-direction: column; gap: 10px; }
+.weekly-challenge { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: var(--card-shadow); }
+.weekly-challenge-main { flex: 1; min-width: 0; }
+.weekly-challenge-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.weekly-challenge-title strong { color: var(--ink); font-size: 12px; }
+.weekly-challenge-title > span { color: #789a58; font-size: 10px; font-weight: 900; white-space: nowrap; }
+.weekly-challenge-main > small { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; }
+.weekly-track { height: 6px; background: var(--soft); border-radius: 8px; overflow: hidden; margin-top: 12px; }
+.weekly-track > div { height: 100%; border-radius: inherit; background: #91b65f; transition: width .25s ease; }
+.weekly-challenge-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 9px; color: var(--muted); font-size: 9px; }
+.weekly-claim { border: 0; border-radius: 8px; padding: 7px 10px; background: var(--lime); color: #183d30; font-size: 9px; font-weight: 800; cursor: pointer; }
+.weekly-claim:disabled { background: var(--soft); color: var(--muted); cursor: default; }
