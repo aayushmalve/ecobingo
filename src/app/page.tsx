@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type Tab = "Home" | "Bingo" | "Rewards" | "Profile";
 type Mission = { id: number; title: string; icon: string; points: number; tone: string };
 type GuideMessage = { role: "user" | "assistant"; text: string };
+type CoachMission = { id: string; title: string; description: string; action: string };
 type WeeklyChallenge = {
   id: string;
   title: string;
@@ -87,6 +88,9 @@ export default function Home() {
     { role: "assistant", text: "Hey, Explorer! Ask me about nature, outdoor missions, or simple ways to help the planet." },
   ]);
   const [guideLoading, setGuideLoading] = useState(false);
+  const [coachMissions, setCoachMissions] = useState<CoachMission[]>([]);
+  const [completedCoachMissions, setCompletedCoachMissions] = useState<string[]>([]);
+  const [coachPreferences, setCoachPreferences] = useState("nature, walking, and helping the environment; 10–20 minutes");
 
   useEffect(() => {
     try {
@@ -105,7 +109,20 @@ export default function Home() {
           points?: unknown;
           activityDates?: unknown;
           weeklyData?: unknown;
+          coachMissions?: unknown;
+          completedCoachMissions?: unknown;
         };
+
+        if (Array.isArray(parsed.coachMissions)) {
+          setCoachMissions(parsed.coachMissions.filter((item): item is CoachMission => {
+            if (!item || typeof item !== "object") return false;
+            const m = item as Partial<CoachMission>;
+            return typeof m.id === "string" && typeof m.title === "string" && typeof m.description === "string" && typeof m.action === "string";
+          }).slice(0, 3));
+        }
+        if (Array.isArray(parsed.completedCoachMissions)) {
+          setCompletedCoachMissions([...new Set(parsed.completedCoachMissions.filter((id): id is string => typeof id === "string"))]);
+        }
 
         // Points are cumulative; missions and the bonus belong to one local day.
         if (typeof parsed.points === "number" && Number.isFinite(parsed.points)) {
@@ -179,11 +196,13 @@ export default function Home() {
           ...weeklyData,
           week: getWeekKey(getLocalDateKey()),
         },
+        coachMissions,
+        completedCoachMissions,
       }));
     } catch {
       // The app remains usable if the browser blocks local storage.
     }
-  }, [theme, completed, bonusClaimed, points, activityDates, weeklyData, loaded]);
+  }, [theme, completed, bonusClaimed, points, activityDates, weeklyData, coachMissions, completedCoachMissions, loaded]);
 
   // Re-check the local date periodically and when the tab becomes active.
   useEffect(() => {
@@ -399,6 +418,46 @@ export default function Home() {
     }
   }
 
+  async function generateCoachMissions() {
+    if (guideLoading) return;
+    setGuideLoading(true);
+    try {
+      const response = await fetch("/api/guide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "missions",
+          question: `Create three personalized EcoBingo missions. My interests and available time: ${coachPreferences.trim() || "beginner-friendly nature and environmental activities, 10–20 minutes"}.`,
+        }),
+      });
+      const data = await response.json() as { missions?: CoachMission[]; error?: string };
+      if (!response.ok || !Array.isArray(data.missions) || data.missions.length !== 3) {
+        throw new Error(data.error || "Couldn't generate missions. Please try again.");
+      }
+      setCoachMissions(data.missions);
+      setGuideMessages((prev) => [...prev, { role: "assistant", text: "Your personalized missions are ready below. Complete each one once to earn 25 demo points." }]);
+      notify("3 personalized missions created");
+    } catch (error) {
+      setGuideMessages((prev) => [...prev, { role: "assistant", text: error instanceof Error ? error.message : "Connection failed. Please try again." }]);
+    } finally {
+      setGuideLoading(false);
+    }
+  }
+
+  function completeCoachMission(mission: CoachMission) {
+    if (completedCoachMissions.includes(mission.id)) return;
+    setCompletedCoachMissions((prev) => [...prev, mission.id]);
+    setPoints((prev) => prev + 25);
+    const today = getLocalDateKey();
+    const week = getWeekKey(today);
+    setActivityDates((prev) => [...new Set([...prev, today])].sort().slice(-730));
+    setWeeklyData((previous) => {
+      const base = previous.week === week ? previous : { week, missionCount: 0, claimed: [] as string[] };
+      return { ...base, missionCount: base.missionCount + 1 };
+    });
+    notify("+25 points earned · Eco mission complete");
+  }
+
   const nav: { name: Tab; icon: string }[] = [
     { name: "Home", icon: "home" }, { name: "Bingo", icon: "grid" },
     { name: "Rewards", icon: "gift" }, { name: "Profile", icon: "user" },
@@ -483,11 +542,11 @@ export default function Home() {
         </section>}
 
         {guideOpen && (
-          <section className="guide-panel" aria-label="EcoBingo Nature Guide">
+          <section className="guide-panel" aria-label="EcoBingo Eco Coach and Nature Guide">
             <header className="guide-header">
               <span className="guide-mark"><Icon name="leaf" /></span>
               <div className="guide-heading">
-                <strong>Nature Guide</strong>
+                <strong>Eco Coach</strong>
                 <small>Powered by Gemma · EcoBingo</small>
               </div>
               <button className="guide-close" onClick={() => setGuideOpen(false)} aria-label="Close nature guide">×</button>
@@ -499,6 +558,21 @@ export default function Home() {
                 </div>
               ))}
               {guideLoading && <div className="guide-message guide-assistant">Thinking of something wild…</div>}
+            </div>
+            <div className="eco-coach">
+              <div className="eco-coach-title"><strong>Personalized Eco Coach</strong><span>Gemma AI</span></div>
+              <label className="eco-coach-label" htmlFor="coach-preferences">What do you enjoy, and how much time do you have?</label>
+              <input id="coach-preferences" className="eco-coach-input" value={coachPreferences} onChange={(event) => setCoachPreferences(event.target.value)} maxLength={240} placeholder="e.g. birds, short walks, 15 minutes" disabled={guideLoading} />
+              <button className="eco-coach-generate" type="button" onClick={generateCoachMissions} disabled={guideLoading}>{guideLoading ? "Generating…" : "Generate 3 missions"}</button>
+              {coachMissions.length > 0 && <div className="eco-coach-missions" aria-live="polite">
+                {coachMissions.map((mission) => {
+                  const done = completedCoachMissions.includes(mission.id);
+                  return <article className={`eco-coach-mission ${done ? "eco-coach-done" : ""}`} key={mission.id}>
+                    <div><strong>{mission.title}</strong><p>{mission.description}</p><small>{mission.action}</small></div>
+                    <button type="button" onClick={() => completeCoachMission(mission)} disabled={done} aria-label={done ? `${mission.title} completed` : `Complete ${mission.title}`}>{done ? "Done" : "+25 pts"}</button>
+                  </article>;
+                })}
+              </div>}
             </div>
             <form className="guide-form" onSubmit={sendGuideMessage}>
               <input
@@ -520,10 +594,10 @@ export default function Home() {
           className={`guide-launcher ${guideOpen ? "guide-launcher-open" : ""}`}
           onClick={() => setGuideOpen((open) => !open)}
           aria-expanded={guideOpen}
-          aria-label={guideOpen ? "Close Nature Guide" : "Open Nature Guide"}
+          aria-label={guideOpen ? "Close Eco Coach" : "Open Eco Coach"}
         >
           <Icon name={guideOpen ? "check" : "leaf"} />
-          <span>{guideOpen ? "Close guide" : "Nature Guide"}</span>
+          <span>{guideOpen ? "Close guide" : "Eco Coach"}</span>
         </button>
 
         <nav className="bottom-nav" aria-label="Main navigation">{nav.map(item => <button key={item.name} className={`nav-item ${tab === item.name ? "nav-active" : ""}`} onClick={() => setTab(item.name)}><span className="nav-icon-wrap"><Icon name={item.icon} /></span><span>{item.name}</span></button>)}</nav>
